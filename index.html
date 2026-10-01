@@ -184,7 +184,7 @@ const SUPABASE_KEY = 'sb_publishable_PbMh7tCQopFbI8aOn_bSHg_Ci6P2X5N';
 
 let target = null;
 let state = null;
-let sb = null;
+let supabase = null;
 let realtimeChannel = null;
 let syncingPrayerDay = false;
 
@@ -250,18 +250,18 @@ function rowFromState(s) {
   };
 }
 async function ensureRoom() {
-  const {data,error}=await sb.from('points_rooms').select('*').eq('room_id',ROOM_ID).maybeSingle();
+  const {data,error}=await supabase.from('points_rooms').select('*').eq('room_id',ROOM_ID).maybeSingle();
   if(error) throw error;
   if(!data){
     const s=fresh();
-    const {data:inserted,error:insertError}=await sb.from('points_rooms').insert(rowFromState(s)).select().single();
+    const {data:inserted,error:insertError}=await supabase.from('points_rooms').insert(rowFromState(s)).select().single();
     if(insertError && insertError.code!=='23505') throw insertError;
     state=inserted ? normalizeRow(inserted) : null;
   } else {
     state=normalizeRow(data);
   }
   if(!state){
-    const {data:retry,error:retryError}=await sb.from('points_rooms').select('*').eq('room_id',ROOM_ID).single();
+    const {data:retry,error:retryError}=await supabase.from('points_rooms').select('*').eq('room_id',ROOM_ID).single();
     if(retryError) throw retryError;
     state=normalizeRow(retry);
   }
@@ -318,10 +318,10 @@ function showStatus(msg,bad=false) {
   el.textContent=msg;el.style.borderColor=bad?'#ff4d5e':'#29405e';
 }
 async function syncPrayerDay(showMessage=true) {
-  if(!sb || syncingPrayerDay) return;
+  if(!supabase || syncingPrayerDay) return;
   syncingPrayerDay=true;
   try {
-    const {data,error}=await sb.rpc('sync_prayer_day',{p_room_id:ROOM_ID,p_today:localDateKey()});
+    const {data,error}=await supabase.rpc('sync_prayer_day',{p_room_id:ROOM_ID,p_today:localDateKey()});
     if(error) throw error;
     state=normalizeRow(data);
     renderState(state);
@@ -336,7 +336,7 @@ async function syncPrayerDay(showMessage=true) {
 async function togglePrayer(k,prayer,checked) {
   if(!state) return;
   showStatus('Saving prayer…');
-  const {data,error}=await sb.rpc('set_prayer_status',{
+  const {data,error}=await supabase.rpc('set_prayer_status',{
     p_room_id:ROOM_ID,
     p_player:k,
     p_prayer:prayer,
@@ -368,7 +368,7 @@ async function addDeduction() {
   if(!reason) return alert('Enter a reason.');
   if(amount>state[target].score) return alert('You cannot deduct more points than the current balance.');
   showStatus('Saving…');
-  const {data,error}=await sb.rpc('deduct_points',{
+  const {data,error}=await supabase.rpc('deduct_points',{
     p_room_id:ROOM_ID,p_player:target,p_amount:amount,p_reason:reason,p_today:localDateKey()
   });
   if(error){showStatus('Save failed',true);return alert(error.message);}
@@ -377,7 +377,7 @@ async function addDeduction() {
 async function resetCurrentMonth() {
   if(!confirm('Reset BOTH players to 2,000 points, erase this month\'s history, and clear today\'s prayer checklist?')) return;
   showStatus('Resetting…');
-  const {data,error}=await sb.rpc('reset_points',{p_room_id:ROOM_ID,p_today:localDateKey()});
+  const {data,error}=await supabase.rpc('reset_points',{p_room_id:ROOM_ID,p_today:localDateKey()});
   if(error){showStatus('Reset failed',true);return alert(error.message);}
   state=normalizeRow(data);renderState(state);showStatus('Reset & synced ✓');
 }
@@ -389,21 +389,13 @@ async function start() {
     document.getElementById('monthLabel').textContent=monthName() + ' • وضع محلي';
     return;
   }
-  sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{
-    global:{fetch:(url,opts={})=>{
-      // Some sandboxed previews cannot clone Headers objects; use a plain object instead.
-      if(opts.headers && typeof opts.headers.forEach==='function' && !Array.isArray(opts.headers)){
-        const h={};opts.headers.forEach((v,k)=>{h[k]=v});opts={...opts,headers:h};
-      }
-      return fetch(url,opts);
-    }}
-  });
+  supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
   try {
     await ensureRoom();
     await syncPrayerDay(false);
     renderState(state);
     showStatus('Online • Room: '+ROOM_ID);
-    realtimeChannel=sb.channel('points-room-'+ROOM_ID)
+    realtimeChannel=supabase.channel('points-room-'+ROOM_ID)
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'points_rooms',filter:'room_id=eq.'+ROOM_ID},payload=>{
         state=normalizeRow(payload.new);renderState(state);showStatus('Synced ✓');
       })
@@ -416,11 +408,8 @@ async function start() {
       if(state && state.prayer_date!==today) syncPrayerDay(true);
     },60000);
   } catch(e) {
-    console.error(e);
-    const detail=[e&&e.message,e&&e.code,e&&e.details,e&&e.hint].filter(Boolean).join(' | ')||JSON.stringify(e);
-    console.error('Supabase error detail:', detail);
-    showStatus('Database connection failed: '+detail.slice(0,140),true);
-    try{alert('Supabase connection failed:\n'+detail);}catch(_){}
+    console.error(e);showStatus('Database connection failed',true);
+    alert('Supabase connection failed. Check the Project URL, Publishable Key, table/policies, and Realtime setup.');
   }
 }
 document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()});
