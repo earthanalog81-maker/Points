@@ -54,7 +54,20 @@ label{display:block;color:#aebbd0;font-size:13px;margin:13px 0 6px}
 input{width:100%;padding:13px;border-radius:12px;border:1px solid #2a4162;background:#07101d;color:white;font-size:15px;outline:none}
 .row{display:flex;gap:10px;margin-top:16px} .row button{flex:1}
 .note{font-size:12px;color:var(--muted);line-height:1.5;margin-top:14px}
-@media(max-width:800px){.players,.history{grid-template-columns:1fr}.controls{grid-template-columns:1fr}.top{flex-direction:column;align-items:stretch}.score{font-size:38px}}
+.prayers{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:24px 0 18px;scroll-margin-top:20px}
+.prayers:before{content:"";display:block;position:absolute}
+.prayer-card{background:linear-gradient(145deg,#0c1729,#08111f);border:1px solid var(--line);border-radius:22px;padding:18px}
+.prayer-card.a{border-color:#a36d16}.prayer-card.l{border-color:#7131a9}
+.prayer-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
+.prayer-head h3{margin:0;font-size:18px}
+.prayer-day{font-size:12px;color:var(--muted)}
+.prayer-list{display:grid;gap:9px}
+.prayer-row{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#0a1628;border:1px solid #172944;border-radius:14px;padding:11px 13px}
+.prayer-row label{display:flex;align-items:center;gap:10px;margin:0;color:#e9eef7;font-size:14px;cursor:pointer}
+.prayer-row input[type=checkbox]{width:20px;height:20px;accent-color:var(--ok);cursor:pointer}
+.prayer-penalty{font-size:12px;color:var(--danger);font-weight:800}
+.prayer-status{margin-top:12px;font-size:12px;color:var(--muted)}
+@media(max-width:800px){.players,.history,.prayers{grid-template-columns:1fr}.controls{grid-template-columns:1fr}.top{flex-direction:column;align-items:stretch}.score{font-size:38px}}
 </style>
 </head>
 <body>
@@ -84,6 +97,37 @@ input{width:100%;padding:13px;border-radius:12px;border:1px solid #2a4162;backgr
       <div class="bar"><div class="fill" id="fill-l"></div></div>
       <div class="meta"><span id="used-l">0 points used</span><span id="remain-l">2,000 remaining</span></div>
       <div class="last" id="last-l">No deductions yet.</div>
+    </div>
+  </section>
+
+  <section class="prayers" id="prayer-section">
+    <div class="prayer-card a">
+      <div class="prayer-head">
+        <h3>🕌 A7mad — جدول الصلوات</h3>
+        <span class="prayer-day" id="prayer-day-a"></span>
+      </div>
+      <div class="prayer-list" id="prayers-a">
+        <div class="prayer-row"><label><input type="checkbox"><span>الفجر</span></label><span class="prayer-penalty">−50</span></div>
+        <div class="prayer-row"><label><input type="checkbox"><span>الظهر</span></label><span class="prayer-penalty">−50</span></div>
+        <div class="prayer-row"><label><input type="checkbox"><span>العصر</span></label><span class="prayer-penalty">−50</span></div>
+        <div class="prayer-row"><label><input type="checkbox"><span>المغرب</span></label><span class="prayer-penalty">−50</span></div>
+        <div class="prayer-row"><label><input type="checkbox"><span>العشاء</span></label><span class="prayer-penalty">−50</span></div>
+      </div>
+      <div class="prayer-status" id="prayer-status-a">كل صلاة غير معلّمة تُخصم 50 نقطة عند بداية اليوم التالي.</div>
+    </div>
+    <div class="prayer-card l">
+      <div class="prayer-head">
+        <h3>🕌 Lamar — جدول الصلوات</h3>
+        <span class="prayer-day" id="prayer-day-l"></span>
+      </div>
+      <div class="prayer-list" id="prayers-l">
+        <div class="prayer-row"><label><input type="checkbox"><span>الفجر</span></label><span class="prayer-penalty">−50</span></div>
+        <div class="prayer-row"><label><input type="checkbox"><span>الظهر</span></label><span class="prayer-penalty">−50</span></div>
+        <div class="prayer-row"><label><input type="checkbox"><span>العصر</span></label><span class="prayer-penalty">−50</span></div>
+        <div class="prayer-row"><label><input type="checkbox"><span>المغرب</span></label><span class="prayer-penalty">−50</span></div>
+        <div class="prayer-row"><label><input type="checkbox"><span>العشاء</span></label><span class="prayer-penalty">−50</span></div>
+      </div>
+      <div class="prayer-status" id="prayer-status-l">كل صلاة غير معلّمة تُخصم 50 نقطة عند بداية اليوم التالي.</div>
     </div>
   </section>
 
@@ -118,17 +162,23 @@ input{width:100%;padding:13px;border-radius:12px;border:1px solid #2a4162;backgr
       <button onclick="closeModal()">Cancel</button>
       <button id="confirm" onclick="addDeduction()">Confirm deduction</button>
     </div>
-    <div class="note">Deductions are permanent for the current month. The score resets to 2,000 automatically when a new month begins.</div>
+    <div class="note">Deductions are permanent for the current month. Prayer checklists reset every day; unchecked prayers from the previous day cost 50 points each.</div>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const MAX = 2000;
+const PRAYER_PENALTY = 50;
+const PRAYERS = [
+  {key:'fajr', name:'الفجر'},
+  {key:'dhuhr', name:'الظهر'},
+  {key:'asr', name:'العصر'},
+  {key:'maghrib', name:'المغرب'},
+  {key:'isha', name:'العشاء'}
+];
 const ROOM_ID = new URLSearchParams(location.search).get('room') || 'A7MAD-LAMAR';
 
-// Add your Supabase Project URL + Publishable Key here.
-// Get them from Supabase Dashboard -> Connect.
 const SUPABASE_URL = 'https://alexyudjwkhuomnjoeih.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_PbMh7tCQopFbI8aOn_bSHg_Ci6P2X5N';
 
@@ -136,24 +186,53 @@ let target = null;
 let state = null;
 let sb = null;
 let realtimeChannel = null;
+let syncingPrayerDay = false;
 
+function localDateKey(d=new Date()) {
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
 function monthKey(d=new Date()) {
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
 }
 function monthName(d=new Date()) {
   return d.toLocaleDateString('en-US', {month:'long', year:'numeric'});
 }
+function prayerDateLabel(dateKey) {
+  if(!dateKey) return '';
+  const d=new Date(dateKey+'T12:00:00');
+  return d.toLocaleDateString('ar-EG',{weekday:'long',day:'numeric',month:'long'});
+}
+function blankPrayers() {
+  return Object.fromEntries(PRAYERS.map(p=>[p.key,false]));
+}
 function fresh() {
-  return {month:monthKey(), a:{score:MAX, history:[]}, l:{score:MAX, history:[]}};
+  return {
+    month:monthKey(),
+    a:{score:MAX,history:[]},
+    l:{score:MAX,history:[]},
+    prayer_date:localDateKey(),
+    a_prayers:blankPrayers(),
+    l_prayers:blankPrayers()
+  };
 }
 function validConfig() {
   return SUPABASE_URL.startsWith('https://') && !SUPABASE_URL.includes('YOUR_') && !SUPABASE_KEY.includes('YOUR_');
 }
 function normalizeRow(row) {
+  const normalizePrayers = value => {
+    const src = value && typeof value === 'object' ? value : {};
+    return Object.fromEntries(PRAYERS.map(p=>[p.key, !!src[p.key]]));
+  };
   return {
     month: row.month,
-    a: {score: Number(row.a_score), history: Array.isArray(row.a_history) ? row.a_history : []},
-    l: {score: Number(row.l_score), history: Array.isArray(row.l_history) ? row.l_history : []}
+    a: {score:Number(row.a_score), history:Array.isArray(row.a_history) ? row.a_history : []},
+    l: {score:Number(row.l_score), history:Array.isArray(row.l_history) ? row.l_history : []},
+    prayer_date: row.prayer_date || localDateKey(),
+    a_prayers: normalizePrayers(row.a_prayers),
+    l_prayers: normalizePrayers(row.l_prayers)
   };
 }
 function rowFromState(s) {
@@ -164,37 +243,53 @@ function rowFromState(s) {
     l_score: s.l.score,
     a_history: s.a.history,
     l_history: s.l.history,
+    prayer_date: s.prayer_date,
+    a_prayers: s.a_prayers,
+    l_prayers: s.l_prayers,
     updated_at: new Date().toISOString()
   };
 }
 async function ensureRoom() {
-  const {data, error} = await sb.from('points_rooms').select('*').eq('room_id', ROOM_ID).maybeSingle();
-  if (error) throw error;
-  if (!data) {
-    const s = fresh();
-    const {data: inserted, error: insertError} = await sb.from('points_rooms').insert(rowFromState(s)).select().single();
-    if (insertError && insertError.code !== '23505') throw insertError;
-    state = inserted ? normalizeRow(inserted) : null;
+  const {data,error}=await sb.from('points_rooms').select('*').eq('room_id',ROOM_ID).maybeSingle();
+  if(error) throw error;
+  if(!data){
+    const s=fresh();
+    const {data:inserted,error:insertError}=await sb.from('points_rooms').insert(rowFromState(s)).select().single();
+    if(insertError && insertError.code!=='23505') throw insertError;
+    state=inserted ? normalizeRow(inserted) : null;
   } else {
-    state = normalizeRow(data);
+    state=normalizeRow(data);
   }
-  if (!state) {
-    const {data: retry, error: retryError} = await sb.from('points_rooms').select('*').eq('room_id', ROOM_ID).single();
-    if (retryError) throw retryError;
-    state = normalizeRow(retry);
-  }
-  if (state.month !== monthKey()) {
-    const s = fresh();
-    const {data: updated, error: resetError} = await sb.from('points_rooms').update(rowFromState(s)).eq('room_id', ROOM_ID).select().single();
-    if (resetError) throw resetError;
-    state = normalizeRow(updated);
+  if(!state){
+    const {data:retry,error:retryError}=await sb.from('points_rooms').select('*').eq('room_id',ROOM_ID).single();
+    if(retryError) throw retryError;
+    state=normalizeRow(retry);
   }
 }
+function renderPrayerList(k) {
+  const checks=state?.[k+'_prayers'] || blankPrayers();
+  const today=state?.prayer_date || localDateKey();
+  const box=document.getElementById('prayers-'+k);
+  if(!box) return;
+  box.innerHTML=PRAYERS.map(p=>`
+    <div class="prayer-row">
+      <label>
+        <input type="checkbox" ${checks[p.key]?'checked':''}
+          onchange="togglePrayer('${k}','${p.key}',this.checked)">
+        <span>${p.name}</span>
+      </label>
+      <span class="prayer-penalty">−${PRAYER_PENALTY}</span>
+    </div>
+  `).join('');
+  document.getElementById('prayer-day-'+k).textContent=prayerDateLabel(today);
+  const done=PRAYERS.filter(p=>checks[p.key]).length;
+  document.getElementById('prayer-status-'+k).textContent=`${done}/5 تم تعليمهم • غير المعلّم يُخصم منه ${PRAYER_PENALTY} نقطة عند بداية اليوم التالي`;
+}
 function renderState(s) {
-  if (!s) return;
+  if(!s) return;
   document.getElementById('monthLabel').textContent=monthName();
   ['a','l'].forEach(k=>{
-    const p=s[k], used=MAX-p.score;
+    const p=s[k],used=MAX-p.score;
     document.getElementById('score-'+k).textContent=p.score.toLocaleString();
     document.getElementById('fill-'+k).style.width=(p.score/MAX*100)+'%';
     document.getElementById('used-'+k).textContent=used.toLocaleString()+' points used';
@@ -207,19 +302,55 @@ function renderState(s) {
     box.innerHTML=p.history.length ? p.history.map(x=>`
       <div class="item"><div class="amount">−${x.amount}</div><div><div class="reason">${escapeHtml(x.reason)}</div><div class="date">${escapeHtml(x.date)}</div></div><div>📉</div></div>
     `).join('') : '<div class="empty">No deductions yet.</div>';
+    renderPrayerList(k);
   });
 }
 function escapeHtml(v) {
-  return String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-function showStatus(msg, bad=false) {
+function showStatus(msg,bad=false) {
   let el=document.getElementById('syncStatus');
   if(!el){
-    el=document.createElement('div'); el.id='syncStatus';
+    el=document.createElement('div');el.id='syncStatus';
     el.style.cssText='position:fixed;right:14px;bottom:14px;z-index:20;padding:10px 14px;border-radius:14px;background:#0b1729;border:1px solid #29405e;color:#b8c4d8;font-size:12px;box-shadow:0 10px 30px #0006';
     document.body.appendChild(el);
   }
-  el.textContent=msg; el.style.borderColor=bad?'#ff4d5e':'#29405e';
+  el.textContent=msg;el.style.borderColor=bad?'#ff4d5e':'#29405e';
+}
+async function syncPrayerDay(showMessage=true) {
+  if(!sb || syncingPrayerDay) return;
+  syncingPrayerDay=true;
+  try {
+    const {data,error}=await sb.rpc('sync_prayer_day',{p_room_id:ROOM_ID,p_today:localDateKey()});
+    if(error) throw error;
+    state=normalizeRow(data);
+    renderState(state);
+    if(showMessage) showStatus('Prayer day synced ✓');
+  } catch(e) {
+    console.error(e);
+    if(showMessage) showStatus('Prayer sync failed',true);
+  } finally {
+    syncingPrayerDay=false;
+  }
+}
+async function togglePrayer(k,prayer,checked) {
+  if(!state) return;
+  showStatus('Saving prayer…');
+  const {data,error}=await sb.rpc('set_prayer_status',{
+    p_room_id:ROOM_ID,
+    p_player:k,
+    p_prayer:prayer,
+    p_checked:checked,
+    p_today:localDateKey()
+  });
+  if(error){
+    renderState(state);
+    showStatus('Prayer save failed',true);
+    return alert(error.message);
+  }
+  state=normalizeRow(data);
+  renderState(state);
+  showStatus('Prayer saved ✓');
 }
 function openModal(k) {
   target=k;
@@ -235,44 +366,61 @@ async function addDeduction() {
   const reason=document.getElementById('reason').value.trim();
   if(!amount || amount<1) return alert('Enter a valid number of points.');
   if(!reason) return alert('Enter a reason.');
-  if(amount > state[target].score) return alert('You cannot deduct more points than the current balance.');
+  if(amount>state[target].score) return alert('You cannot deduct more points than the current balance.');
   showStatus('Saving…');
-  const {data,error}=await sb.rpc('deduct_points', {p_room_id:ROOM_ID,p_player:target,p_amount:amount,p_reason:reason});
-  if(error){ showStatus('Save failed',true); return alert(error.message); }
-  state=normalizeRow(data);
-  renderState(state); closeModal(); showStatus('Synced ✓');
+  const {data,error}=await sb.rpc('deduct_points',{
+    p_room_id:ROOM_ID,p_player:target,p_amount:amount,p_reason:reason,p_today:localDateKey()
+  });
+  if(error){showStatus('Save failed',true);return alert(error.message);}
+  state=normalizeRow(data);renderState(state);closeModal();showStatus('Synced ✓');
 }
 async function resetCurrentMonth() {
-  if(!confirm('Reset BOTH players to 2,000 points and erase this month\'s history?')) return;
+  if(!confirm('Reset BOTH players to 2,000 points, erase this month\'s history, and clear today\'s prayer checklist?')) return;
   showStatus('Resetting…');
-  const {data,error}=await sb.rpc('reset_points', {p_room_id:ROOM_ID});
-  if(error){ showStatus('Reset failed',true); return alert(error.message); }
-  state=normalizeRow(data); renderState(state); showStatus('Reset & synced ✓');
+  const {data,error}=await sb.rpc('reset_points',{p_room_id:ROOM_ID,p_today:localDateKey()});
+  if(error){showStatus('Reset failed',true);return alert(error.message);}
+  state=normalizeRow(data);renderState(state);showStatus('Reset & synced ✓');
 }
 async function start() {
-  if(!validConfig()) {
-    showStatus('Supabase setup required',true);
-    document.getElementById('monthLabel').textContent='Add Supabase URL + key to the file';
+  if(!validConfig()){
+    state=fresh();
+    renderState(state);
+    showStatus('جدول الصلوات ظاهر — Supabase غير مُعد بعد',true);
+    document.getElementById('monthLabel').textContent=monthName() + ' • وضع محلي';
     return;
   }
-  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{
+    global:{fetch:(url,opts={})=>{
+      // Some sandboxed previews cannot clone Headers objects; use a plain object instead.
+      if(opts.headers && typeof opts.headers.forEach==='function' && !Array.isArray(opts.headers)){
+        const h={};opts.headers.forEach((v,k)=>{h[k]=v});opts={...opts,headers:h};
+      }
+      return fetch(url,opts);
+    }}
+  });
   try {
     await ensureRoom();
+    await syncPrayerDay(false);
     renderState(state);
     showStatus('Online • Room: '+ROOM_ID);
     realtimeChannel=sb.channel('points-room-'+ROOM_ID)
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'points_rooms',filter:'room_id=eq.'+ROOM_ID},payload=>{
-        state=normalizeRow(payload.new); renderState(state); showStatus('Synced ✓');
+        state=normalizeRow(payload.new);renderState(state);showStatus('Synced ✓');
       })
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'points_rooms',filter:'room_id=eq.'+ROOM_ID},payload=>{
-        state=normalizeRow(payload.new); renderState(state); showStatus('Synced ✓');
+        state=normalizeRow(payload.new);renderState(state);showStatus('Synced ✓');
       })
-      .subscribe(status=>{ if(status==='SUBSCRIBED') showStatus('Live sync ✓'); });
+      .subscribe(status=>{if(status==='SUBSCRIBED') showStatus('Live sync ✓');});
+    setInterval(()=>{
+      const today=localDateKey();
+      if(state && state.prayer_date!==today) syncPrayerDay(true);
+    },60000);
   } catch(e) {
     console.error(e);
     const detail=[e&&e.message,e&&e.code,e&&e.details,e&&e.hint].filter(Boolean).join(' | ')||JSON.stringify(e);
-    showStatus('Database connection failed',true);
-    alert('Supabase connection failed:\n'+detail);
+    console.error('Supabase error detail:', detail);
+    showStatus('Database connection failed: '+detail.slice(0,140),true);
+    try{alert('Supabase connection failed:\n'+detail);}catch(_){}
   }
 }
 document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()});
